@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="sl">
 <head>
@@ -84,6 +85,14 @@ textarea:focus-visible{
 
 #vrBtn{
   background:#7c3aed;
+}
+
+#exportBtn{
+  background:#b45309;
+}
+
+#importBtn{
+  background:#0369a1;
 }
 
 #mapBtn{
@@ -1043,6 +1052,16 @@ textarea:focus-visible{
     🥽 CARDBOARD
   </button>
 
+  <button id="exportBtn" title="Izvozi vse hotspote v hotspots.json">
+    💾 IZVOZI HOTSPOTE
+  </button>
+
+  <button id="importBtn" title="Uvozi hotspots.json">
+    📂 UVOZI HOTSPOTE
+  </button>
+
+  <input id="importFile" type="file" accept="application/json,.json" hidden>
+
 </div>
 
 <div id="hint">
@@ -1499,6 +1518,9 @@ const scene =
 const camera =
   $("camera");
 
+const cameraRig =
+  $("cameraRig");
+
 const sky =
   $("sky");
 
@@ -1538,6 +1560,15 @@ const fullscreenBtn =
 
 const vrBtn =
   $("vrBtn");
+
+const exportBtn =
+  $("exportBtn");
+
+const importBtn =
+  $("importBtn");
+
+const importFile =
+  $("importFile");
 
 const hint =
   $("hint");
@@ -1739,6 +1770,10 @@ let currentPointId =
 let hotspots =
   [];
 
+/* Hotspoti, objavljeni v datoteki hotspots.json na GitHub Pages. */
+let publishedHotspots =
+  {};
+
 
 function pointStorageKey(id){
 
@@ -1768,8 +1803,7 @@ function currentPoint(){
 function loadHotspotsForPoint(id){
 
   let loaded =
-    [];
-
+    null;
 
   try{
 
@@ -1778,38 +1812,32 @@ function loadHotspotsForPoint(id){
         pointStorageKey(id)
       );
 
-
-    if(raw){
-
-      loaded =
-        JSON.parse(raw) || [];
-
+    if(raw !== null){
+      loaded = JSON.parse(raw) || [];
     }
     else if(
-      id === "janja"
+      id === "janja" &&
+      localStorage.getItem(STORAGE_KEY) !== null
     ){
-
       loaded =
         JSON.parse(
-          localStorage.getItem(
-            STORAGE_KEY
-          )
+          localStorage.getItem(STORAGE_KEY)
         ) || [];
-
     }
 
   }
   catch(e){
-
-    loaded =
-      [];
-
+    loaded = null;
   }
 
+  /* Če na tej napravi še ni lokalnih sprememb, uporabi objavljeno verzijo. */
+  if(loaded === null){
+    loaded = Array.isArray(publishedHotspots[id])
+      ? JSON.parse(JSON.stringify(publishedHotspots[id]))
+      : [];
+  }
 
-  hotspots =
-    loaded;
-
+  hotspots = loaded;
 }
 
 
@@ -1828,6 +1856,146 @@ function saveHotspots(){
   );
 
 }
+
+
+/* =========================================================
+   OBJAVA / PRENOS HOTSPOTOV
+
+   1. Hotspote urediš v navadnem pogledu.
+   2. Klikneš "IZVOZI HOTSPOTE".
+   3. Nastalo datoteko hotspots.json naložiš v isti GitHub
+      repozitorij kot index.html.
+   4. Telefon/VR nato sam prebere objavljene hotspote.
+========================================================= */
+
+function getAllHotspotsForExport(){
+
+  const points = {};
+
+  TOUR_POINTS.forEach(point=>{
+
+    const raw = localStorage.getItem(
+      pointStorageKey(point.id)
+    );
+
+    if(raw !== null){
+      try{
+        points[point.id] = JSON.parse(raw) || [];
+      }
+      catch(e){
+        points[point.id] = [];
+      }
+    }
+    else if(point.id === currentPointId){
+      points[point.id] = JSON.parse(
+        JSON.stringify(hotspots)
+      );
+    }
+    else{
+      points[point.id] = Array.isArray(publishedHotspots[point.id])
+        ? JSON.parse(JSON.stringify(publishedHotspots[point.id]))
+        : [];
+    }
+
+  });
+
+  return {
+    version:1,
+    updated:new Date().toISOString(),
+    points
+  };
+}
+
+function exportHotspots(){
+
+  const data = getAllHotspotsForExport();
+  const blob = new Blob(
+    [JSON.stringify(data,null,2)],
+    {type:"application/json"}
+  );
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "hotspots.json";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+
+  alert(
+    "Hotspoti so izvoženi v hotspots.json.\n\n" +
+    "To datoteko naloži na GitHub v isto mapo kot index.html."
+  );
+}
+
+async function loadPublishedHotspots(){
+
+  try{
+    const response = await fetch(
+      "hotspots.json?ts=" + Date.now(),
+      {cache:"no-store"}
+    );
+
+    if(!response.ok){
+      return;
+    }
+
+    const data = await response.json();
+    publishedHotspots = data.points || {};
+
+    /* Lokalna verzija ima prednost. Če je ni, osveži prikaz. */
+    if(
+      localStorage.getItem(pointStorageKey(currentPointId)) === null &&
+      !(currentPointId === "janja" && localStorage.getItem(STORAGE_KEY) !== null)
+    ){
+      loadHotspotsForPoint(currentPointId);
+      renderHotspots();
+    }
+  }
+  catch(e){
+    /* hotspots.json še ni objavljen - to ni napaka. */
+  }
+}
+
+async function importHotspotsFile(file){
+
+  if(!file){
+    return;
+  }
+
+  try{
+    const data = JSON.parse(await file.text());
+    const points = data.points || {};
+
+    TOUR_POINTS.forEach(point=>{
+      if(Array.isArray(points[point.id])){
+        localStorage.setItem(
+          pointStorageKey(point.id),
+          JSON.stringify(points[point.id])
+        );
+      }
+    });
+
+    loadHotspotsForPoint(currentPointId);
+    renderHotspots();
+    alert("Hotspoti so uvoženi.");
+  }
+  catch(e){
+    alert("Datoteka ni veljaven hotspots.json.");
+  }
+}
+
+exportBtn.onclick = exportHotspots;
+
+importBtn.onclick = ()=>{
+  importFile.value = "";
+  importFile.click();
+};
+
+importFile.onchange = ()=>{
+  importHotspotsFile(importFile.files[0]);
+};
 
 
 function getHotspot(id){
@@ -4426,7 +4594,7 @@ function showVRStart(mode){
 
 
     vrStartText.textContent =
-      "Obrni telefon vodoravno in ga vstavi v Cardboard očala.";
+      "Obrni telefon vodoravno, drži ga naravnost pred seboj in nato zaženi Cardboard. Pogled se bo sam centriral.";
 
   }
 
@@ -4622,6 +4790,35 @@ startVRBtn.onclick =
 
 
 /* =========================================================
+   VR CENTRIRANJE
+
+   Ko uporabnik zažene Cardboard, naj telefon drži naravnost
+   pred seboj. Trenutno orientacijo uporabimo kot novo smer
+   "naravnost", zato pogled ne začne v tleh.
+========================================================= */
+
+function recenterVRView(){
+
+  if(
+    !cameraRig ||
+    !camera ||
+    !camera.object3D
+  ){
+    return;
+  }
+
+  cameraRig.object3D.quaternion.identity();
+  cameraRig.object3D.updateMatrixWorld(true);
+
+  const localQ = camera.object3D.quaternion.clone();
+  const correction = localQ.clone().invert();
+
+  cameraRig.object3D.quaternion.copy(correction);
+  cameraRig.object3D.updateMatrixWorld(true);
+}
+
+
+/* =========================================================
    VR NAZAJ PRI MODELU
 ========================================================= */
 
@@ -4768,6 +4965,12 @@ scene.addEventListener(
 
     checkOrientation();
 
+    /* Počakamo, da senzor telefona odda prvo stabilno orientacijo. */
+    setTimeout(
+      recenterVRView,
+      700
+    );
+
   }
 );
 
@@ -4799,6 +5002,11 @@ scene.addEventListener(
 
 
     hideVRInfo();
+
+    if(cameraRig){
+      cameraRig.object3D.quaternion.identity();
+      cameraRig.object3D.updateMatrixWorld(true);
+    }
 
 
     /*
@@ -5017,6 +5225,9 @@ scene.addEventListener(
 
 
     renderHotspots();
+
+    /* Če obstaja hotspots.json na GitHub Pages, ga preberi. */
+    loadPublishedHotspots();
 
     updateMapActiveState();
 
