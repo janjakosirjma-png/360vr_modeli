@@ -1,0 +1,5119 @@
+<!DOCTYPE html>
+<html lang="sl">
+<head>
+<meta charset="utf-8">
+
+<meta
+  name="viewport"
+  content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+
+<title>360° VR ogled + 3D modeli</title>
+
+<script src="https://aframe.io/releases/1.7.1/aframe.min.js"></script>
+
+<style>
+*{
+  box-sizing:border-box;
+}
+
+html,
+body{
+  margin:0;
+  width:100%;
+  height:100%;
+  overflow:hidden;
+  background:#000;
+  font-family:Arial,Helvetica,sans-serif;
+}
+
+body{
+  touch-action:none;
+}
+
+a-scene{
+  position:fixed !important;
+  inset:0;
+  width:100% !important;
+  height:100% !important;
+}
+
+/* =========================================================
+   NORMAL UI
+========================================================= */
+
+#toolbar{
+  position:fixed;
+  z-index:10000;
+  top:max(10px,env(safe-area-inset-top));
+  left:max(10px,env(safe-area-inset-left));
+  display:flex;
+  gap:7px;
+  flex-wrap:wrap;
+  padding:8px;
+  border-radius:14px;
+  background:rgba(0,0,0,.82);
+}
+
+button{
+  min-height:42px;
+  padding:0 13px;
+  border:0;
+  border-radius:9px;
+  background:#333;
+  color:#fff;
+  font-size:14px;
+  font-weight:700;
+  cursor:pointer;
+  touch-action:manipulation;
+}
+
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible{
+  outline:3px solid #facc15;
+  outline-offset:2px;
+}
+
+#addBtn{
+  background:#2563eb;
+}
+
+#addBtn.active{
+  background:#16a34a;
+}
+
+#vrBtn{
+  background:#7c3aed;
+}
+
+#mapBtn{
+  background:#0f766e;
+}
+
+#locationBadge{
+  display:flex;
+  align-items:center;
+  min-height:42px;
+  padding:0 12px;
+  border-radius:9px;
+  background:#fff;
+  color:#111;
+  font-size:13px;
+  font-weight:800;
+  white-space:nowrap;
+}
+
+#hint{
+  position:fixed;
+  z-index:10001;
+  display:none;
+  left:50%;
+  bottom:max(22px,env(safe-area-inset-bottom));
+  transform:translateX(-50%);
+  width:max-content;
+  max-width:calc(100vw - 30px);
+  padding:11px 18px;
+  border-radius:30px;
+  background:rgba(0,0,0,.88);
+  color:#fff;
+  text-align:center;
+  pointer-events:none;
+}
+
+/* =========================================================
+   HOTSPOT POPUP
+========================================================= */
+
+#popup{
+  position:fixed;
+  z-index:10002;
+  display:none;
+  width:350px;
+  max-width:calc(100vw - 20px);
+  padding:18px;
+  border-radius:14px;
+  background:#fff;
+  color:#111;
+  box-shadow:0 12px 45px rgba(0,0,0,.5);
+}
+
+#popupClose{
+  position:absolute;
+  right:8px;
+  top:8px;
+  width:34px;
+  height:34px;
+  min-width:34px;
+  min-height:34px;
+  padding:0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:50%;
+  background:#222;
+  color:#fff;
+  font-size:23px;
+}
+
+#reader,
+#editor{
+  display:none;
+}
+
+#readerTitle{
+  margin:0 42px 10px 0;
+}
+
+#readerDescription{
+  margin-bottom:15px;
+  white-space:pre-wrap;
+  line-height:1.45;
+}
+
+.readerButtons,
+.editorButtons{
+  display:flex;
+  gap:7px;
+}
+
+.readerButtons button,
+.editorButtons button{
+  flex:1;
+}
+
+#speakBtn,
+#saveBtn{
+  background:#16a34a;
+}
+
+#editBtn{
+  background:#2563eb;
+}
+
+#cancelBtn{
+  background:#666;
+}
+
+#deleteBtn{
+  background:#dc2626;
+}
+
+.fieldLabel{
+  display:block;
+  margin:9px 0 4px;
+  font-size:13px;
+  font-weight:700;
+}
+
+.inputRow{
+  display:flex;
+  gap:6px;
+  align-items:stretch;
+}
+
+.inputRow input,
+.inputRow textarea{
+  flex:1;
+  min-width:0;
+}
+
+#titleInput,
+#descriptionInput{
+  width:100%;
+  padding:11px;
+  border:1px solid #aaa;
+  border-radius:8px;
+  font:inherit;
+}
+
+#descriptionInput{
+  min-height:110px;
+  resize:vertical;
+}
+
+.dictateBtn{
+  flex:0 0 52px;
+  width:52px;
+  min-width:52px;
+  padding:0;
+  background:#7c3aed;
+  font-size:20px;
+}
+
+.dictateBtn.listening{
+  background:#dc2626;
+}
+
+#dictationStatus{
+  min-height:20px;
+  margin-top:7px;
+  color:#555;
+  font-size:13px;
+  font-weight:700;
+}
+
+.editorButtons{
+  margin-top:10px;
+}
+
+.sr-only{
+  position:absolute !important;
+  width:1px !important;
+  height:1px !important;
+  padding:0 !important;
+  margin:-1px !important;
+  overflow:hidden !important;
+  clip:rect(0,0,0,0) !important;
+  white-space:nowrap !important;
+  border:0 !important;
+}
+
+/* =========================================================
+   ZEMLJEVID
+========================================================= */
+
+#mapOverlay{
+  position:fixed;
+  inset:0;
+  z-index:19000;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:18px;
+  background:
+    radial-gradient(
+      circle at 50% 30%,
+      #163b55 0%,
+      #071521 64%,
+      #030a10 100%
+    );
+  color:#fff;
+  overflow:auto;
+  touch-action:manipulation;
+}
+
+#mapPanel{
+  position:relative;
+  width:min(980px,96vw);
+  height:min(690px,92vh);
+  min-height:560px;
+  border:1px solid rgba(255,255,255,.2);
+  border-radius:28px;
+  overflow:hidden;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(11,54,78,.72),
+      rgba(4,24,38,.92)
+    );
+  box-shadow:0 28px 90px rgba(0,0,0,.55);
+}
+
+#mapHeader{
+  position:absolute;
+  z-index:8;
+  left:28px;
+  right:28px;
+  top:22px;
+  display:flex;
+  justify-content:space-between;
+  gap:18px;
+  align-items:flex-start;
+}
+
+#mapHeader h1{
+  margin:0 0 5px;
+  font-size:clamp(25px,4vw,42px);
+}
+
+#mapHeader p{
+  margin:0;
+  color:#c7e7ef;
+  font-size:14px;
+  line-height:1.4;
+}
+
+#mapClose{
+  background:rgba(0,0,0,.45);
+  border:1px solid rgba(255,255,255,.25);
+}
+
+#tourMap{
+  position:absolute;
+  inset:105px 22px 24px;
+  overflow:hidden;
+  border-radius:22px;
+}
+
+.map-continent{
+  position:absolute;
+  z-index:1;
+  left:12%;
+  top:6%;
+  width:72%;
+  height:84%;
+  background:
+    linear-gradient(
+      145deg,
+      #7fa66e 0%,
+      #4e805f 52%,
+      #315f55 100%
+    );
+  border:2px solid rgba(226,255,218,.6);
+  clip-path:
+    polygon(
+      13% 9%,
+      31% 3%,
+      44% 12%,
+      59% 7%,
+      75% 16%,
+      91% 14%,
+      97% 29%,
+      89% 42%,
+      94% 55%,
+      82% 62%,
+      76% 80%,
+      60% 92%,
+      48% 85%,
+      36% 98%,
+      24% 87%,
+      19% 68%,
+      7% 58%,
+      12% 43%,
+      3% 30%
+    );
+}
+
+.map-path{
+  position:absolute;
+  z-index:2;
+  height:4px;
+  border-radius:99px;
+  background:rgba(255,255,255,.55);
+  transform-origin:left center;
+}
+
+.map-path.p1{
+  left:31%;
+  top:35%;
+  width:25%;
+  transform:rotate(14deg);
+}
+
+.map-path.p2{
+  left:54%;
+  top:43%;
+  width:24%;
+  transform:rotate(30deg);
+}
+
+.map-point{
+  position:absolute;
+  z-index:5;
+  transform:translate(-14px,-50%);
+  display:flex;
+  align-items:center;
+  gap:10px;
+  min-height:48px;
+  padding:4px 10px 4px 4px;
+  border:0;
+  border-radius:24px;
+  background:rgba(4,20,30,.82);
+  color:#fff;
+  box-shadow:0 8px 22px rgba(0,0,0,.32);
+  text-align:left;
+}
+
+.map-point .pin{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  flex:0 0 38px;
+  width:38px;
+  height:38px;
+  border-radius:50%;
+  background:#ef4444;
+  border:4px solid #fff;
+}
+
+.map-point .pin:after{
+  content:"";
+  width:9px;
+  height:9px;
+  border-radius:50%;
+  background:#fff;
+}
+
+.map-point .name{
+  display:block;
+  font-size:14px;
+  font-weight:900;
+  white-space:nowrap;
+}
+
+.map-point .sub{
+  display:block;
+  margin-top:2px;
+  font-size:10px;
+  color:#bfe7ed;
+  font-weight:700;
+  white-space:nowrap;
+}
+
+.map-point.active{
+  background:rgba(15,118,110,.94);
+}
+
+.map-point.active .pin{
+  background:#facc15;
+}
+
+.modelsPoint .pin{
+  background:#7c3aed;
+}
+
+/* =========================================================
+   KNJIŽNICA MODELOV
+========================================================= */
+
+#modelsOverlay{
+  position:fixed;
+  inset:0;
+  z-index:19500;
+  display:none;
+  overflow:auto;
+  padding:20px;
+  color:#fff;
+  background:
+    radial-gradient(
+      circle at top,
+      #164e63,
+      #071521 65%
+    );
+  touch-action:manipulation;
+}
+
+#modelsPanel{
+  width:min(900px,96vw);
+  margin:20px auto;
+  padding:24px;
+  border-radius:24px;
+  border:1px solid rgba(255,255,255,.2);
+  background:rgba(0,0,0,.38);
+}
+
+.modelsHeader{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:20px;
+}
+
+.modelsHeader h1{
+  margin:0 0 7px;
+}
+
+.modelsHeader p{
+  margin:0;
+  color:#cce8f4;
+}
+
+#modelsClose{
+  background:#555;
+  font-size:22px;
+}
+
+#modelGrid{
+  display:grid;
+  grid-template-columns:
+    repeat(auto-fit,minmax(180px,1fr));
+  gap:15px;
+  margin-top:25px;
+}
+
+.modelCard{
+  min-height:180px;
+  padding:20px;
+  border-radius:18px;
+  border:1px solid rgba(255,255,255,.18);
+  background:#123e56;
+  text-align:center;
+}
+
+.modelCard:hover{
+  background:#18536f;
+}
+
+.modelEmoji{
+  display:block;
+  font-size:60px;
+  margin-bottom:10px;
+}
+
+.modelName{
+  display:block;
+  font-size:20px;
+}
+
+.modelDescription{
+  display:block;
+  margin-top:7px;
+  color:#cce8f4;
+  font-size:12px;
+}
+
+/* =========================================================
+   3D MODEL VIEWER
+========================================================= */
+
+#modelViewer{
+  position:fixed;
+  inset:0;
+  z-index:19600;
+  display:none;
+  background:#071018;
+  color:#fff;
+  touch-action:none;
+}
+
+#modelViewerToolbar{
+  position:absolute;
+  z-index:5;
+  left:10px;
+  right:10px;
+  top:max(10px,env(safe-area-inset-top));
+  display:flex;
+  gap:8px;
+  align-items:center;
+  flex-wrap:wrap;
+  padding:8px;
+  border-radius:14px;
+  background:rgba(0,0,0,.78);
+}
+
+#modelViewerTitle{
+  margin-right:auto;
+  padding:0 10px;
+  font-weight:900;
+  font-size:18px;
+}
+
+#modelResetBtn{
+  background:#0f766e;
+}
+
+#modelVRBtn{
+  background:#7c3aed;
+}
+
+#modelBackBtn{
+  background:#555;
+}
+
+#modelCanvas{
+  position:absolute;
+  inset:0;
+  display:block;
+  width:100%;
+  height:100%;
+  touch-action:none;
+}
+
+#modelHelp{
+  position:absolute;
+  z-index:4;
+  left:50%;
+  bottom:max(18px,env(safe-area-inset-bottom));
+  transform:translateX(-50%);
+  max-width:calc(100vw - 20px);
+  padding:9px 15px;
+  border-radius:30px;
+  background:rgba(0,0,0,.7);
+  text-align:center;
+  font-size:13px;
+}
+
+/* =========================================================
+   VR START
+========================================================= */
+
+#vrStart{
+  position:fixed;
+  inset:0;
+  z-index:20000;
+  display:none;
+  align-items:center;
+  justify-content:center;
+  padding:20px;
+  background:rgba(0,0,0,.94);
+}
+
+#vrStartBox{
+  width:390px;
+  max-width:100%;
+  padding:24px;
+  border-radius:16px;
+  background:#fff;
+  color:#111;
+  text-align:center;
+}
+
+#vrStartBox h2{
+  margin-top:0;
+}
+
+#vrStartBox button{
+  width:100%;
+  margin-top:8px;
+}
+
+#startVRBtn{
+  background:#7c3aed;
+}
+
+#cancelVRBtn{
+  background:#666;
+}
+
+#rotateWarning{
+  position:fixed;
+  inset:0;
+  z-index:30000;
+  display:none;
+  align-items:center;
+  justify-content:center;
+  padding:30px;
+  background:#000;
+  color:#fff;
+  text-align:center;
+  font-size:22px;
+  font-weight:bold;
+}
+
+.a-enter-vr{
+  display:none !important;
+}
+
+@media(max-width:650px){
+
+  #locationBadge{
+    display:none;
+  }
+
+  #mapPanel{
+    min-height:610px;
+    height:94vh;
+  }
+
+  #tourMap{
+    inset:125px 6px 14px;
+  }
+
+  .map-continent{
+    left:3%;
+    top:8%;
+    width:91%;
+    height:80%;
+  }
+
+  .map-point{
+    gap:7px;
+    min-height:44px;
+  }
+
+  .map-point .pin{
+    flex-basis:32px;
+    width:32px;
+    height:32px;
+    border-width:3px;
+  }
+
+  .map-point .name{
+    font-size:12px;
+  }
+
+  .map-point .sub{
+    font-size:9px;
+  }
+
+  #popup{
+    width:calc(100vw - 20px);
+  }
+
+  #modelViewerTitle{
+    width:100%;
+  }
+
+}
+</style>
+</head>
+
+<body>
+
+<!-- =======================================================
+     A-FRAME SCENA
+======================================================== -->
+
+<a-scene
+  id="scene"
+  embedded
+  vr-mode-ui="enabled:true"
+  device-orientation-permission-ui="enabled:true"
+  renderer="
+    antialias:true;
+    colorManagement:true;
+    highRefreshRate:true;
+    physicallyCorrectLights:false;
+  "
+  background="color:#000000">
+
+  <a-assets timeout="30000">
+
+    <img
+      id="panoramaImage"
+      src="360.jpg"
+      crossorigin="anonymous">
+
+    <!--
+      GLB MODEL SRCA
+
+      Datoteka mora biti:
+
+      predmeti/heart.glb
+    -->
+
+    <a-asset-item
+      id="heartAsset"
+      src="predmeti/heart.glb">
+    </a-asset-item>
+
+  </a-assets>
+
+
+  <!-- =====================================================
+       PANORAMA
+  ====================================================== -->
+
+  <a-sky
+    id="sky"
+    src="#panoramaImage"
+    rotation="0 0 0">
+  </a-sky>
+
+
+  <!-- =====================================================
+       HOTSPOTI
+  ====================================================== -->
+
+  <a-entity id="hotspotContainer"></a-entity>
+
+
+  <!-- =====================================================
+       VR MODEL
+  ====================================================== -->
+
+  <a-entity
+    id="vrModelWorld"
+    visible="false">
+
+    <!-- temno ozadje za model -->
+
+    <a-sky
+      id="vrModelBackground"
+      color="#071018">
+    </a-sky>
+
+    <!-- luči -->
+
+    <a-entity
+      light="
+        type:hemisphere;
+        color:#ffffff;
+        groundColor:#444444;
+        intensity:2;
+      ">
+    </a-entity>
+
+    <a-entity
+      light="
+        type:directional;
+        color:#ffffff;
+        intensity:2;
+      "
+      position="2 4 3">
+    </a-entity>
+
+    <!-- SRCE -->
+
+    <a-gltf-model
+      id="vrHeart"
+      src="#heartAsset"
+      position="0 0 -2.5"
+      rotation="0 0 0"
+      scale="1 1 1">
+    </a-gltf-model>
+
+    <!-- VR NAZAJ -->
+
+    <a-plane
+      id="vrModelBack"
+      class="gaze-target"
+      width="1.15"
+      height="0.38"
+      position="0 -1.15 -2.15"
+      color="#b91c1c"
+      material="shader:flat">
+
+      <a-text
+        value="NAZAJ"
+        align="center"
+        anchor="center"
+        color="#ffffff"
+        width="2.8"
+        position="0 0 0.01">
+      </a-text>
+
+    </a-plane>
+
+  </a-entity>
+
+
+  <!-- =====================================================
+       VR INFO ZA HOTSPOTE
+  ====================================================== -->
+
+  <a-entity
+    id="vrInfo"
+    visible="false">
+
+    <a-plane
+      width="3.4"
+      height="1.9"
+      color="#b9ddff"
+      material="
+        shader:flat;
+        opacity:0.96;
+        transparent:true;
+      ">
+    </a-plane>
+
+    <a-text
+      id="vrInfoTitle"
+      value=""
+      color="#10243e"
+      width="3"
+      align="center"
+      anchor="center"
+      wrap-count="30"
+      position="0 0.46 0.015">
+    </a-text>
+
+    <a-text
+      id="vrInfoDescription"
+      value=""
+      color="#17324f"
+      width="2.8"
+      align="center"
+      anchor="center"
+      wrap-count="42"
+      position="0 -0.15 0.015">
+    </a-text>
+
+    <a-circle
+      id="vrCloseButton"
+      class="gaze-target"
+      radius="0.19"
+      color="#1e3a5f"
+      position="1.40 0.72 0.035">
+
+      <a-text
+        value="×"
+        color="#ffffff"
+        width="0.75"
+        align="center"
+        anchor="center"
+        position="0 0 0.01">
+      </a-text>
+
+    </a-circle>
+
+  </a-entity>
+
+
+  <!-- =====================================================
+       CAMERA
+  ====================================================== -->
+
+  <a-entity
+    id="cameraRig"
+    position="0 0 0">
+
+    <a-camera
+      id="camera"
+      position="0 0 0"
+      wasd-controls="enabled:false"
+      look-controls="
+        enabled:true;
+        magicWindowTrackingEnabled:true;
+        touchEnabled:true;
+        mouseEnabled:true;
+        pointerLockEnabled:false;
+      ">
+
+      <a-entity
+        id="mouseCursor"
+        cursor="
+          enabled:true;
+          rayOrigin:mouse;
+          fuse:false;
+        "
+        raycaster="
+          enabled:true;
+          objects:.mouse-target;
+          far:100;
+          interval:20;
+        ">
+      </a-entity>
+
+      <a-entity
+        id="reticle"
+        visible="false"
+        position="0 0 -1"
+        cursor="
+          enabled:false;
+          fuse:true;
+          fuseTimeout:1200;
+        "
+        raycaster="
+          enabled:false;
+          objects:.gaze-target;
+          far:100;
+          interval:50;
+        "
+        geometry="
+          primitive:ring;
+          radiusInner:0.012;
+          radiusOuter:0.019;
+        "
+        material="
+          color:#ffffff;
+          shader:flat;
+          opacity:0.95;
+        ">
+      </a-entity>
+
+    </a-camera>
+
+  </a-entity>
+
+</a-scene>
+
+
+<!-- =======================================================
+     TOOLBAR
+======================================================== -->
+
+<div id="toolbar">
+
+  <button id="mapBtn">
+    🗺 ZEMLJEVID
+  </button>
+
+  <div id="locationBadge">
+    📍 JANJA
+  </div>
+
+  <button id="addBtn">
+    + Dodaj hotspot
+  </button>
+
+  <button id="zoomInBtn">
+    +
+  </button>
+
+  <button id="zoomOutBtn">
+    −
+  </button>
+
+  <button id="fullscreenBtn">
+    ⛶
+  </button>
+
+  <button id="vrBtn">
+    🥽 CARDBOARD
+  </button>
+
+</div>
+
+<div id="hint">
+  Tapni točno mesto v panorami
+</div>
+
+
+<!-- =======================================================
+     ZEMLJEVID
+======================================================== -->
+
+<div id="mapOverlay">
+
+  <div id="mapPanel">
+
+    <div id="mapHeader">
+
+      <div>
+
+        <h1>
+          🗺 360° ZEMLJEVID
+        </h1>
+
+        <p>
+          Izberi panoramo ali odpri knjižnico 3D modelov.
+        </p>
+
+      </div>
+
+      <button id="mapClose">
+        ×
+      </button>
+
+    </div>
+
+
+    <div id="tourMap">
+
+      <div
+        class="map-continent"
+        aria-hidden="true">
+      </div>
+
+      <div
+        class="map-path p1"
+        aria-hidden="true">
+      </div>
+
+      <div
+        class="map-path p2"
+        aria-hidden="true">
+      </div>
+
+
+      <!-- JANJA -->
+
+      <button
+        class="map-point"
+        data-point-id="janja"
+        style="left:25%;top:31%">
+
+        <span class="pin"></span>
+
+        <span>
+
+          <span class="name">
+            JANJA
+          </span>
+
+          <span class="sub">
+            360° TOČKA 1
+          </span>
+
+        </span>
+
+      </button>
+
+
+      <!-- ALENKA -->
+
+      <button
+        class="map-point"
+        data-point-id="alenka"
+        style="left:51%;top:40%">
+
+        <span class="pin"></span>
+
+        <span>
+
+          <span class="name">
+            ALENKA
+          </span>
+
+          <span class="sub">
+            360° TOČKA 2
+          </span>
+
+        </span>
+
+      </button>
+
+
+      <!-- MODELI -->
+
+      <button
+        id="modelsMapPoint"
+        class="map-point modelsPoint"
+        style="left:72%;top:62%">
+
+        <span class="pin"></span>
+
+        <span>
+
+          <span class="name">
+            MODELI
+          </span>
+
+          <span class="sub">
+            3D + VR OBJEKTI
+          </span>
+
+        </span>
+
+      </button>
+
+    </div>
+
+  </div>
+
+</div>
+
+
+<!-- =======================================================
+     SEZNAM MODELOV
+======================================================== -->
+
+<div id="modelsOverlay">
+
+  <div id="modelsPanel">
+
+    <div class="modelsHeader">
+
+      <div>
+
+        <h1>
+          🧩 MODELI
+        </h1>
+
+        <p>
+          Izberi model. Nato ga lahko gledaš v 3D ali v Cardboard VR.
+        </p>
+
+      </div>
+
+      <button id="modelsClose">
+        ×
+      </button>
+
+    </div>
+
+
+    <div id="modelGrid">
+
+      <!-- SRCE -->
+
+      <button
+        id="heartModelCard"
+        class="modelCard">
+
+        <span class="modelEmoji">
+          🫀
+        </span>
+
+        <span class="modelName">
+          SRCE
+        </span>
+
+        <span class="modelDescription">
+          heart.glb
+        </span>
+
+      </button>
+
+    </div>
+
+  </div>
+
+</div>
+
+
+<!-- =======================================================
+     3D PREGLEDOVALNIK
+======================================================== -->
+
+<div id="modelViewer">
+
+  <div id="modelViewerToolbar">
+
+    <div id="modelViewerTitle">
+      🫀 SRCE
+    </div>
+
+    <button id="modelResetBtn">
+      ↺ Ponastavi
+    </button>
+
+    <button id="modelVRBtn">
+      🥽 VR CARDBOARD
+    </button>
+
+    <button id="modelBackBtn">
+      ← MODELI
+    </button>
+
+  </div>
+
+
+  <canvas id="modelCanvas"></canvas>
+
+
+  <div id="modelHelp">
+    Povleci za vrtenje • kolešček ali ščip za približevanje
+  </div>
+
+</div>
+
+
+<!-- =======================================================
+     HOTSPOT POPUP
+======================================================== -->
+
+<div id="popup">
+
+  <button id="popupClose">
+    ×
+  </button>
+
+
+  <div id="reader">
+
+    <h2
+      id="readerTitle"
+      tabindex="-1">
+    </h2>
+
+    <div id="readerDescription"></div>
+
+    <div class="readerButtons">
+
+      <button id="speakBtn">
+        🔊 Preberi
+      </button>
+
+      <button id="editBtn">
+        Uredi
+      </button>
+
+    </div>
+
+  </div>
+
+
+  <div id="editor">
+
+    <label class="fieldLabel">
+      Naslov
+    </label>
+
+    <div class="inputRow">
+
+      <input
+        id="titleInput"
+        type="text"
+        lang="sl">
+
+      <button
+        id="dictateTitleBtn"
+        class="dictateBtn">
+        🎤
+      </button>
+
+    </div>
+
+
+    <label class="fieldLabel">
+      Opis
+    </label>
+
+    <div class="inputRow">
+
+      <textarea
+        id="descriptionInput"
+        lang="sl">
+      </textarea>
+
+      <button
+        id="dictateDescriptionBtn"
+        class="dictateBtn">
+        🎤
+      </button>
+
+    </div>
+
+
+    <div id="dictationStatus">
+      Narek je pripravljen.
+    </div>
+
+
+    <div class="editorButtons">
+
+      <button id="saveBtn">
+        Shrani
+      </button>
+
+      <button id="cancelBtn">
+        Prekliči
+      </button>
+
+      <button id="deleteBtn">
+        Izbriši
+      </button>
+
+    </div>
+
+  </div>
+
+</div>
+
+
+<div
+  id="screenReaderAnnouncement"
+  class="sr-only"
+  aria-live="polite">
+</div>
+
+
+<!-- =======================================================
+     VR START
+======================================================== -->
+
+<div id="vrStart">
+
+  <div id="vrStartBox">
+
+    <h2 id="vrStartTitle">
+      Cardboard
+    </h2>
+
+    <p id="vrStartText">
+      Obrni telefon vodoravno in ga vstavi v Cardboard očala.
+    </p>
+
+    <button id="startVRBtn">
+      ZAŽENI CARDBOARD
+    </button>
+
+    <button id="cancelVRBtn">
+      Prekliči
+    </button>
+
+  </div>
+
+</div>
+
+
+<div id="rotateWarning">
+  Obrni telefon vodoravno
+</div>
+
+
+<script>
+"use strict";
+
+
+/* =========================================================
+   A-FRAME COMPONENT
+========================================================= */
+
+AFRAME.registerComponent(
+  "look-at-center",
+  {
+
+    tick:function(){
+
+      if(this.el.object3D){
+
+        this.el.object3D.lookAt(
+          0,
+          0,
+          0
+        );
+
+      }
+
+    }
+
+  }
+);
+
+
+AFRAME.registerComponent(
+  "face-camera",
+  {
+
+    tick:function(){
+
+      const cameraEl =
+        document.getElementById(
+          "camera"
+        );
+
+
+      if(
+        !cameraEl ||
+        !cameraEl.object3D ||
+        !this.el.object3D
+      ){
+        return;
+      }
+
+
+      const position =
+        new THREE.Vector3();
+
+
+      cameraEl.object3D.getWorldPosition(
+        position
+      );
+
+
+      this.el.object3D.lookAt(
+        position
+      );
+
+    }
+
+  }
+);
+
+
+/* =========================================================
+   DOM
+========================================================= */
+
+const $ =
+  id =>
+    document.getElementById(id);
+
+
+const scene =
+  $("scene");
+
+const camera =
+  $("camera");
+
+const sky =
+  $("sky");
+
+const panoramaImage =
+  $("panoramaImage");
+
+const hotspotContainer =
+  $("hotspotContainer");
+
+const mouseCursor =
+  $("mouseCursor");
+
+const reticle =
+  $("reticle");
+
+
+const toolbar =
+  $("toolbar");
+
+const mapBtn =
+  $("mapBtn");
+
+const locationBadge =
+  $("locationBadge");
+
+const addBtn =
+  $("addBtn");
+
+const zoomInBtn =
+  $("zoomInBtn");
+
+const zoomOutBtn =
+  $("zoomOutBtn");
+
+const fullscreenBtn =
+  $("fullscreenBtn");
+
+const vrBtn =
+  $("vrBtn");
+
+const hint =
+  $("hint");
+
+
+const mapOverlay =
+  $("mapOverlay");
+
+const mapClose =
+  $("mapClose");
+
+const modelsMapPoint =
+  $("modelsMapPoint");
+
+
+const modelsOverlay =
+  $("modelsOverlay");
+
+const modelsClose =
+  $("modelsClose");
+
+const heartModelCard =
+  $("heartModelCard");
+
+
+const modelViewer =
+  $("modelViewer");
+
+const modelCanvas =
+  $("modelCanvas");
+
+const modelResetBtn =
+  $("modelResetBtn");
+
+const modelVRBtn =
+  $("modelVRBtn");
+
+const modelBackBtn =
+  $("modelBackBtn");
+
+
+const vrModelWorld =
+  $("vrModelWorld");
+
+const vrHeart =
+  $("vrHeart");
+
+const vrModelBack =
+  $("vrModelBack");
+
+
+const popup =
+  $("popup");
+
+const popupClose =
+  $("popupClose");
+
+const reader =
+  $("reader");
+
+const editor =
+  $("editor");
+
+const readerTitle =
+  $("readerTitle");
+
+const readerDescription =
+  $("readerDescription");
+
+const speakBtn =
+  $("speakBtn");
+
+const editBtn =
+  $("editBtn");
+
+const titleInput =
+  $("titleInput");
+
+const descriptionInput =
+  $("descriptionInput");
+
+const dictateTitleBtn =
+  $("dictateTitleBtn");
+
+const dictateDescriptionBtn =
+  $("dictateDescriptionBtn");
+
+const dictationStatus =
+  $("dictationStatus");
+
+const saveBtn =
+  $("saveBtn");
+
+const cancelBtn =
+  $("cancelBtn");
+
+const deleteBtn =
+  $("deleteBtn");
+
+const screenReaderAnnouncement =
+  $("screenReaderAnnouncement");
+
+
+const vrInfo =
+  $("vrInfo");
+
+const vrInfoTitle =
+  $("vrInfoTitle");
+
+const vrInfoDescription =
+  $("vrInfoDescription");
+
+const vrCloseButton =
+  $("vrCloseButton");
+
+
+const vrStart =
+  $("vrStart");
+
+const vrStartTitle =
+  $("vrStartTitle");
+
+const vrStartText =
+  $("vrStartText");
+
+const startVRBtn =
+  $("startVRBtn");
+
+const cancelVRBtn =
+  $("cancelVRBtn");
+
+const rotateWarning =
+  $("rotateWarning");
+
+
+vrInfo.setAttribute(
+  "face-camera",
+  ""
+);
+
+
+/* =========================================================
+   MODELI
+
+   KO BOŠ DODAJALA NOVE MODELE,
+   JIH BOMO DODALI SEM.
+========================================================= */
+
+const MODELS = {
+
+  heart:{
+
+    id:"heart",
+
+    name:"Srce",
+
+    file:"predmeti/heart.glb"
+
+  }
+
+};
+
+
+let selectedModel =
+  MODELS.heart;
+
+
+/* =========================================================
+   TOUR
+========================================================= */
+
+const STORAGE_KEY =
+  "stable-360-hotspots-v5";
+
+
+const TOUR_POINTS = [
+
+  {
+    id:"janja",
+    name:"JANJA",
+    panorama:"360.jpg"
+  },
+
+  {
+    id:"alenka",
+    name:"ALENKA",
+    panorama:"360.jpg"
+  }
+
+];
+
+
+let currentPointId =
+  localStorage.getItem(
+    "stable-360-current-point"
+  ) || "janja";
+
+
+let hotspots =
+  [];
+
+
+function pointStorageKey(id){
+
+  return(
+    STORAGE_KEY +
+    "-point-" +
+    id
+  );
+
+}
+
+
+function currentPoint(){
+
+  return(
+    TOUR_POINTS.find(
+      point =>
+        point.id ===
+        currentPointId
+    ) ||
+    TOUR_POINTS[0]
+  );
+
+}
+
+
+function loadHotspotsForPoint(id){
+
+  let loaded =
+    [];
+
+
+  try{
+
+    const raw =
+      localStorage.getItem(
+        pointStorageKey(id)
+      );
+
+
+    if(raw){
+
+      loaded =
+        JSON.parse(raw) || [];
+
+    }
+    else if(
+      id === "janja"
+    ){
+
+      loaded =
+        JSON.parse(
+          localStorage.getItem(
+            STORAGE_KEY
+          )
+        ) || [];
+
+    }
+
+  }
+  catch(e){
+
+    loaded =
+      [];
+
+  }
+
+
+  hotspots =
+    loaded;
+
+}
+
+
+function saveHotspots(){
+
+  localStorage.setItem(
+
+    pointStorageKey(
+      currentPointId
+    ),
+
+    JSON.stringify(
+      hotspots
+    )
+
+  );
+
+}
+
+
+function getHotspot(id){
+
+  return(
+    hotspots.find(
+      hotspot =>
+        hotspot.id === id
+    )
+  );
+
+}
+
+
+loadHotspotsForPoint(
+  currentPointId
+);
+
+
+/* =========================================================
+   ZEMLJEVID
+========================================================= */
+
+function updateMapActiveState(){
+
+  document
+    .querySelectorAll(
+      ".map-point[data-point-id]"
+    )
+    .forEach(
+      button => {
+
+        button.classList.toggle(
+
+          "active",
+
+          button.dataset.pointId ===
+            currentPointId
+
+        );
+
+      }
+    );
+
+}
+
+
+function showMap(){
+
+  if(
+    scene.is(
+      "vr-mode"
+    )
+  ){
+    return;
+  }
+
+
+  closePopup();
+
+  stopAddMode();
+
+
+  modelsOverlay.style.display =
+    "none";
+
+
+  modelViewer.style.display =
+    "none";
+
+
+  updateMapActiveState();
+
+
+  mapOverlay.style.display =
+    "flex";
+
+}
+
+
+function hideMap(){
+
+  mapOverlay.style.display =
+    "none";
+
+}
+
+
+function switchTourPoint(id){
+
+  const point =
+    TOUR_POINTS.find(
+      item =>
+        item.id === id
+    );
+
+
+  if(!point){
+    return;
+  }
+
+
+  closePopup();
+
+  stopAddMode();
+
+
+  currentPointId =
+    point.id;
+
+
+  localStorage.setItem(
+    "stable-360-current-point",
+    currentPointId
+  );
+
+
+  loadHotspotsForPoint(
+    currentPointId
+  );
+
+
+  panoramaImage.setAttribute(
+    "src",
+    point.panorama
+  );
+
+
+  sky.setAttribute(
+    "src",
+    point.panorama
+  );
+
+
+  locationBadge.textContent =
+    "📍 " +
+    point.name;
+
+
+  renderHotspots();
+
+  updateMapActiveState();
+
+  hideMap();
+
+}
+
+
+/* =========================================================
+   MAP EVENTS
+========================================================= */
+
+mapBtn.onclick =
+  showMap;
+
+
+mapClose.onclick =
+  hideMap;
+
+
+document
+  .querySelectorAll(
+    ".map-point[data-point-id]"
+  )
+  .forEach(
+    button => {
+
+      button.onclick =
+        ()=>{
+
+          switchTourPoint(
+            button.dataset.pointId
+          );
+
+        };
+
+    }
+  );
+
+
+/* =========================================================
+   MODELI - ZEMLJEVID
+========================================================= */
+
+modelsMapPoint.onclick =
+  ()=>{
+
+    hideMap();
+
+    closePopup();
+
+    stopAddMode();
+
+
+    modelsOverlay.style.display =
+      "block";
+
+  };
+
+
+modelsClose.onclick =
+  ()=>{
+
+    modelsOverlay.style.display =
+      "none";
+
+
+    showMap();
+
+  };
+
+
+heartModelCard.onclick =
+  ()=>{
+
+    selectedModel =
+      MODELS.heart;
+
+
+    modelsOverlay.style.display =
+      "none";
+
+
+    openNormalModelViewer();
+
+  };
+
+
+modelBackBtn.onclick =
+  ()=>{
+
+    closeNormalModelViewer();
+
+
+    modelsOverlay.style.display =
+      "block";
+
+  };
+
+
+/* =========================================================
+   NORMALNI 3D GLB PREGLEDOVALNIK
+
+   Uporabljamo THREE, ki ga A-Frame že vsebuje.
+========================================================= */
+
+let modelRenderer =
+  null;
+
+let modelScene =
+  null;
+
+let modelCamera =
+  null;
+
+let normalModel =
+  null;
+
+let modelAnimationFrame =
+  null;
+
+
+let modelRotationX =
+  0;
+
+let modelRotationY =
+  0;
+
+let modelDistance =
+  3;
+
+
+let modelDragging =
+  false;
+
+let modelLastX =
+  0;
+
+let modelLastY =
+  0;
+
+
+let pinchStartDistance =
+  0;
+
+
+/* =========================================================
+   INIT 3D VIEWER
+========================================================= */
+
+function initNormalModelViewer(){
+
+  if(modelRenderer){
+    return;
+  }
+
+
+  modelRenderer =
+    new THREE.WebGLRenderer({
+
+      canvas:
+        modelCanvas,
+
+      antialias:
+        true,
+
+      alpha:
+        false
+
+    });
+
+
+  modelRenderer.setPixelRatio(
+
+    Math.min(
+      window.devicePixelRatio || 1,
+      2
+    )
+
+  );
+
+
+  modelRenderer.setClearColor(
+    0x071018,
+    1
+  );
+
+
+  modelScene =
+    new THREE.Scene();
+
+
+  modelCamera =
+    new THREE.PerspectiveCamera(
+      45,
+      1,
+      0.01,
+      100
+    );
+
+
+  modelCamera.position.set(
+    0,
+    0,
+    3
+  );
+
+
+  const ambient =
+    new THREE.HemisphereLight(
+      0xffffff,
+      0x444444,
+      2
+    );
+
+
+  modelScene.add(
+    ambient
+  );
+
+
+  const light =
+    new THREE.DirectionalLight(
+      0xffffff,
+      2
+    );
+
+
+  light.position.set(
+    3,
+    4,
+    5
+  );
+
+
+  modelScene.add(
+    light
+  );
+
+
+  resizeNormalModelViewer();
+
+}
+
+
+/* =========================================================
+   RESIZE
+========================================================= */
+
+function resizeNormalModelViewer(){
+
+  if(
+    !modelRenderer ||
+    !modelCamera
+  ){
+    return;
+  }
+
+
+  const width =
+    window.innerWidth;
+
+
+  const height =
+    window.innerHeight;
+
+
+  modelRenderer.setSize(
+    width,
+    height,
+    false
+  );
+
+
+  modelCamera.aspect =
+    width / height;
+
+
+  modelCamera.updateProjectionMatrix();
+
+}
+
+
+/* =========================================================
+   GLB LOAD
+
+   GLTFLoader je že del A-Frame / THREE okolja.
+========================================================= */
+
+function loadNormalModel(){
+
+  initNormalModelViewer();
+
+
+  if(normalModel){
+
+    modelScene.remove(
+      normalModel
+    );
+
+
+    normalModel =
+      null;
+
+  }
+
+
+  const loader =
+    new THREE.GLTFLoader();
+
+
+  loader.load(
+
+    selectedModel.file,
+
+    gltf => {
+
+      normalModel =
+        gltf.scene;
+
+
+      /*
+        Najprej izračunamo velikost.
+      */
+
+      const box =
+        new THREE.Box3()
+          .setFromObject(
+            normalModel
+          );
+
+
+      const size =
+        new THREE.Vector3();
+
+
+      const center =
+        new THREE.Vector3();
+
+
+      box.getSize(
+        size
+      );
+
+
+      box.getCenter(
+        center
+      );
+
+
+      /*
+        Premaknemo središče modela
+        v 0,0,0.
+      */
+
+      normalModel.position.sub(
+        center
+      );
+
+
+      /*
+        Samodejna velikost.
+      */
+
+      const largest =
+        Math.max(
+          size.x,
+          size.y,
+          size.z
+        ) || 1;
+
+
+      const scale =
+        1.7 /
+        largest;
+
+
+      normalModel.scale.setScalar(
+        scale
+      );
+
+
+      modelScene.add(
+        normalModel
+      );
+
+
+      resetNormalModel();
+
+    },
+
+    progress => {},
+
+    error => {
+
+      console.error(
+        error
+      );
+
+
+      alert(
+        "heart.glb ni bilo mogoče naložiti.\n\nPreveri, da je datoteka v:\npredmeti/heart.glb"
+      );
+
+    }
+
+  );
+
+}
+
+
+/* =========================================================
+   OPEN / CLOSE
+========================================================= */
+
+function openNormalModelViewer(){
+
+  modelViewer.style.display =
+    "block";
+
+
+  initNormalModelViewer();
+
+  resizeNormalModelViewer();
+
+  loadNormalModel();
+
+
+  if(
+    !modelAnimationFrame
+  ){
+
+    animateNormalModel();
+
+  }
+
+}
+
+
+function closeNormalModelViewer(){
+
+  modelViewer.style.display =
+    "none";
+
+}
+
+
+/* =========================================================
+   RESET
+========================================================= */
+
+function resetNormalModel(){
+
+  modelRotationX =
+    0;
+
+
+  modelRotationY =
+    0;
+
+
+  modelDistance =
+    3;
+
+}
+
+
+modelResetBtn.onclick =
+  resetNormalModel;
+
+
+/* =========================================================
+   ANIMATION
+========================================================= */
+
+function animateNormalModel(){
+
+  modelAnimationFrame =
+    requestAnimationFrame(
+      animateNormalModel
+    );
+
+
+  if(
+    modelViewer.style.display !==
+      "block" ||
+    !modelRenderer ||
+    !modelCamera
+  ){
+    return;
+  }
+
+
+  if(normalModel){
+
+    normalModel.rotation.x =
+      modelRotationX;
+
+
+    normalModel.rotation.y =
+      modelRotationY;
+
+  }
+
+
+  modelCamera.position.set(
+    0,
+    0,
+    modelDistance
+  );
+
+
+  modelCamera.lookAt(
+    0,
+    0,
+    0
+  );
+
+
+  modelRenderer.render(
+    modelScene,
+    modelCamera
+  );
+
+}
+
+
+/* =========================================================
+   MIŠKA / PRST
+========================================================= */
+
+modelCanvas.addEventListener(
+  "pointerdown",
+  event => {
+
+    modelDragging =
+      true;
+
+
+    modelLastX =
+      event.clientX;
+
+
+    modelLastY =
+      event.clientY;
+
+
+    try{
+
+      modelCanvas.setPointerCapture(
+        event.pointerId
+      );
+
+    }
+    catch(e){}
+
+  }
+);
+
+
+modelCanvas.addEventListener(
+  "pointermove",
+  event => {
+
+    if(!modelDragging){
+      return;
+    }
+
+
+    const dx =
+      event.clientX -
+      modelLastX;
+
+
+    const dy =
+      event.clientY -
+      modelLastY;
+
+
+    modelRotationY +=
+      dx * 0.01;
+
+
+    modelRotationX +=
+      dy * 0.01;
+
+
+    modelLastX =
+      event.clientX;
+
+
+    modelLastY =
+      event.clientY;
+
+  }
+);
+
+
+modelCanvas.addEventListener(
+  "pointerup",
+  ()=>{
+
+    modelDragging =
+      false;
+
+  }
+);
+
+
+modelCanvas.addEventListener(
+  "pointercancel",
+  ()=>{
+
+    modelDragging =
+      false;
+
+  }
+);
+
+
+/* =========================================================
+   KOLEŠČEK ZOOM
+========================================================= */
+
+modelCanvas.addEventListener(
+  "wheel",
+  event => {
+
+    event.preventDefault();
+
+
+    modelDistance =
+      THREE.MathUtils.clamp(
+
+        modelDistance +
+        event.deltaY *
+        0.003,
+
+        1.2,
+
+        8
+
+      );
+
+  },
+
+  {
+    passive:false
+  }
+);
+
+
+/* =========================================================
+   PINCH ZOOM
+========================================================= */
+
+modelCanvas.addEventListener(
+  "touchstart",
+  event => {
+
+    if(
+      event.touches.length ===
+      2
+    ){
+
+      pinchStartDistance =
+        Math.hypot(
+
+          event.touches[0].clientX -
+          event.touches[1].clientX,
+
+          event.touches[0].clientY -
+          event.touches[1].clientY
+
+        );
+
+    }
+
+  },
+
+  {
+    passive:false
+  }
+);
+
+
+modelCanvas.addEventListener(
+  "touchmove",
+  event => {
+
+    if(
+      event.touches.length !==
+      2
+    ){
+      return;
+    }
+
+
+    event.preventDefault();
+
+
+    const distance =
+      Math.hypot(
+
+        event.touches[0].clientX -
+        event.touches[1].clientX,
+
+        event.touches[0].clientY -
+        event.touches[1].clientY
+
+      );
+
+
+    if(
+      pinchStartDistance
+    ){
+
+      modelDistance =
+        THREE.MathUtils.clamp(
+
+          modelDistance +
+
+          (
+            pinchStartDistance -
+            distance
+          ) *
+          0.01,
+
+          1.2,
+
+          8
+
+        );
+
+    }
+
+
+    pinchStartDistance =
+      distance;
+
+  },
+
+  {
+    passive:false
+  }
+);
+
+
+/* =========================================================
+   VR MODEL - SAMODEJNO CENTRIRANJE
+========================================================= */
+
+vrHeart.addEventListener(
+  "model-loaded",
+  ()=>{
+
+    const object =
+      vrHeart.getObject3D(
+        "mesh"
+      );
+
+
+    if(!object){
+      return;
+    }
+
+
+    const box =
+      new THREE.Box3()
+        .setFromObject(
+          object
+        );
+
+
+    const size =
+      new THREE.Vector3();
+
+
+    const center =
+      new THREE.Vector3();
+
+
+    box.getSize(
+      size
+    );
+
+
+    box.getCenter(
+      center
+    );
+
+
+    const largest =
+      Math.max(
+        size.x,
+        size.y,
+        size.z
+      ) || 1;
+
+
+    const scale =
+      1.25 /
+      largest;
+
+
+    object.scale.setScalar(
+      scale
+    );
+
+
+    /*
+      Po skaliranju še enkrat
+      izračunamo središče.
+    */
+
+    const newBox =
+      new THREE.Box3()
+        .setFromObject(
+          object
+        );
+
+
+    const newCenter =
+      new THREE.Vector3();
+
+
+    newBox.getCenter(
+      newCenter
+    );
+
+
+    object.position.x -=
+      newCenter.x;
+
+
+    object.position.y -=
+      newCenter.y;
+
+
+    object.position.z -=
+      newCenter.z;
+
+  }
+);
+
+
+/* =========================================================
+   SPHERICAL
+========================================================= */
+
+function sphericalToVector(
+  yaw,
+  pitch,
+  radius=8
+){
+
+  return{
+
+    x:
+      radius *
+      Math.cos(pitch) *
+      Math.sin(yaw),
+
+    y:
+      radius *
+      Math.sin(pitch),
+
+    z:
+      -radius *
+      Math.cos(pitch) *
+      Math.cos(yaw)
+
+  };
+
+}
+
+
+function vectorToSpherical(v){
+
+  const length =
+    Math.sqrt(
+
+      v.x*v.x +
+      v.y*v.y +
+      v.z*v.z
+
+    );
+
+
+  if(!length){
+
+    return{
+      yaw:0,
+      pitch:0
+    };
+
+  }
+
+
+  return{
+
+    yaw:
+      Math.atan2(
+        v.x/length,
+        -v.z/length
+      ),
+
+    pitch:
+      Math.asin(
+
+        THREE.MathUtils.clamp(
+          v.y/length,
+          -1,
+          1
+        )
+
+      )
+
+  };
+
+}
+
+
+/* =========================================================
+   HOTSPOT CANVAS
+========================================================= */
+
+function makeHotspotCanvas(number){
+
+  const canvas =
+    document.createElement(
+      "canvas"
+    );
+
+
+  canvas.width =
+    256;
+
+  canvas.height =
+    256;
+
+
+  const ctx =
+    canvas.getContext(
+      "2d"
+    );
+
+
+  ctx.beginPath();
+
+  ctx.arc(
+    128,
+    128,
+    112,
+    0,
+    Math.PI*2
+  );
+
+  ctx.fillStyle =
+    "#ffffff";
+
+  ctx.fill();
+
+
+  ctx.beginPath();
+
+  ctx.arc(
+    128,
+    128,
+    91,
+    0,
+    Math.PI*2
+  );
+
+  ctx.fillStyle =
+    "#ef3333";
+
+  ctx.fill();
+
+
+  ctx.fillStyle =
+    "#ffffff";
+
+  ctx.font =
+    "bold 100px Arial";
+
+  ctx.textAlign =
+    "center";
+
+  ctx.textBaseline =
+    "middle";
+
+
+  ctx.fillText(
+    String(number),
+    128,
+    136
+  );
+
+
+  return canvas;
+
+}
+
+
+/* =========================================================
+   RENDER HOTSPOTS
+========================================================= */
+
+function renderHotspots(){
+
+  hotspotContainer.innerHTML =
+    "";
+
+
+  hotspots.forEach(
+    (hotspot,index)=>{
+
+      const position =
+        sphericalToVector(
+          hotspot.yaw,
+          hotspot.pitch,
+          8
+        );
+
+
+      const marker =
+        document.createElement(
+          "a-image"
+        );
+
+
+      marker.setAttribute(
+
+        "src",
+
+        makeHotspotCanvas(
+          index+1
+        ).toDataURL(
+          "image/png"
+        )
+
+      );
+
+
+      marker.setAttribute(
+
+        "position",
+
+        `${position.x} ${position.y} ${position.z}`
+
+      );
+
+
+      marker.setAttribute(
+        "width",
+        "0.55"
+      );
+
+
+      marker.setAttribute(
+        "height",
+        "0.55"
+      );
+
+
+      marker.setAttribute(
+        "material",
+        "shader:flat; transparent:true; alphaTest:0.05"
+      );
+
+
+      marker.setAttribute(
+        "look-at-center",
+        ""
+      );
+
+
+      marker.classList.add(
+        "hotspot",
+        "mouse-target",
+        "gaze-target"
+      );
+
+
+      marker.dataset.hotspotId =
+        hotspot.id;
+
+
+      marker.addEventListener(
+        "click",
+        ()=>{
+
+          if(addMode){
+            return;
+          }
+
+
+          if(
+            scene.is(
+              "vr-mode"
+            )
+          ){
+
+            showVRInfo(
+              hotspot.id
+            );
+
+          }
+          else{
+
+            openReader(
+              hotspot.id
+            );
+
+          }
+
+        }
+      );
+
+
+      hotspotContainer.appendChild(
+        marker
+      );
+
+    }
+  );
+
+}
+
+
+/* =========================================================
+   SCREEN READER
+========================================================= */
+
+function announceToScreenReader(text){
+
+  screenReaderAnnouncement.textContent =
+    "";
+
+
+  setTimeout(
+    ()=>{
+
+      screenReaderAnnouncement.textContent =
+        text;
+
+    },
+    50
+  );
+
+}
+
+
+/* =========================================================
+   POPUP
+========================================================= */
+
+let selectedHotspotId =
+  null;
+
+
+function closePopup(){
+
+  stopDictation();
+
+  stopSpeaking();
+
+
+  popup.style.display =
+    "none";
+
+
+  selectedHotspotId =
+    null;
+
+}
+
+
+function openReader(id){
+
+  const hotspot =
+    getHotspot(id);
+
+
+  if(!hotspot){
+    return;
+  }
+
+
+  selectedHotspotId =
+    id;
+
+
+  readerTitle.textContent =
+    hotspot.title ||
+    "Brez naslova";
+
+
+  readerDescription.textContent =
+    hotspot.description ||
+    "Ni opisa.";
+
+
+  editor.style.display =
+    "none";
+
+
+  reader.style.display =
+    "block";
+
+
+  popup.style.display =
+    "block";
+
+
+  positionPopup();
+
+}
+
+
+function openEditor(id){
+
+  const hotspot =
+    getHotspot(id);
+
+
+  if(!hotspot){
+    return;
+  }
+
+
+  selectedHotspotId =
+    id;
+
+
+  titleInput.value =
+    hotspot.title || "";
+
+
+  descriptionInput.value =
+    hotspot.description || "";
+
+
+  reader.style.display =
+    "none";
+
+
+  editor.style.display =
+    "block";
+
+
+  popup.style.display =
+    "block";
+
+
+  positionPopup();
+
+}
+
+
+popupClose.onclick =
+  closePopup;
+
+
+editBtn.onclick =
+  ()=>{
+
+    if(selectedHotspotId){
+
+      openEditor(
+        selectedHotspotId
+      );
+
+    }
+
+  };
+
+
+saveBtn.onclick =
+  ()=>{
+
+    const hotspot =
+      getHotspot(
+        selectedHotspotId
+      );
+
+
+    if(!hotspot){
+      return;
+    }
+
+
+    hotspot.title =
+      titleInput.value.trim();
+
+
+    hotspot.description =
+      descriptionInput.value.trim();
+
+
+    saveHotspots();
+
+    renderHotspots();
+
+    openReader(
+      hotspot.id
+    );
+
+  };
+
+
+cancelBtn.onclick =
+  ()=>{
+
+    const hotspot =
+      getHotspot(
+        selectedHotspotId
+      );
+
+
+    if(
+      hotspot &&
+      (
+        hotspot.title ||
+        hotspot.description
+      )
+    ){
+
+      openReader(
+        hotspot.id
+      );
+
+    }
+    else{
+
+      closePopup();
+
+    }
+
+  };
+
+
+deleteBtn.onclick =
+  ()=>{
+
+    if(!selectedHotspotId){
+      return;
+    }
+
+
+    hotspots =
+      hotspots.filter(
+        hotspot =>
+          hotspot.id !==
+          selectedHotspotId
+      );
+
+
+    saveHotspots();
+
+    closePopup();
+
+    renderHotspots();
+
+  };
+
+
+/* =========================================================
+   NAREK
+========================================================= */
+
+const SpeechRecognitionClass =
+  window.SpeechRecognition ||
+  window.webkitSpeechRecognition;
+
+
+let recognition =
+  null;
+
+
+let dictationRunning =
+  false;
+
+
+if(!SpeechRecognitionClass){
+
+  dictateTitleBtn.style.display =
+    "none";
+
+
+  dictateDescriptionBtn.style.display =
+    "none";
+
+}
+
+
+function stopDictation(){
+
+  if(recognition){
+
+    try{
+
+      recognition.stop();
+
+    }
+    catch(e){}
+
+  }
+
+
+  recognition =
+    null;
+
+
+  dictationRunning =
+    false;
+
+
+  dictateTitleBtn.classList.remove(
+    "listening"
+  );
+
+
+  dictateDescriptionBtn.classList.remove(
+    "listening"
+  );
+
+}
+
+
+function startDictation(
+  target,
+  button
+){
+
+  if(!SpeechRecognitionClass){
+    return;
+  }
+
+
+  if(dictationRunning){
+
+    stopDictation();
+
+    return;
+
+  }
+
+
+  recognition =
+    new SpeechRecognitionClass();
+
+
+  recognition.lang =
+    "sl-SI";
+
+
+  recognition.continuous =
+    true;
+
+
+  recognition.interimResults =
+    true;
+
+
+  const originalText =
+    target.value;
+
+
+  let finalTranscript =
+    "";
+
+
+  recognition.onstart =
+    ()=>{
+
+      dictationRunning =
+        true;
+
+
+      button.classList.add(
+        "listening"
+      );
+
+
+      dictationStatus.textContent =
+        "🔴 Poslušam ...";
+
+    };
+
+
+  recognition.onresult =
+    event=>{
+
+      let interim =
+        "";
+
+
+      for(
+        let i=event.resultIndex;
+        i<event.results.length;
+        i++
+      ){
+
+        const text =
+          event.results[i][0]
+            .transcript;
+
+
+        if(
+          event.results[i].isFinal
+        ){
+
+          finalTranscript +=
+            text + " ";
+
+        }
+        else{
+
+          interim +=
+            text;
+
+        }
+
+      }
+
+
+      target.value =
+
+        originalText +
+
+        (
+          originalText.trim()
+            ? " "
+            : ""
+        ) +
+
+        finalTranscript +
+
+        interim;
+
+    };
+
+
+  recognition.onend =
+    ()=>{
+
+      dictationRunning =
+        false;
+
+
+      button.classList.remove(
+        "listening"
+      );
+
+
+      recognition =
+        null;
+
+    };
+
+
+  try{
+
+    recognition.start();
+
+  }
+  catch(e){}
+
+}
+
+
+dictateTitleBtn.onclick =
+  ()=>{
+
+    startDictation(
+      titleInput,
+      dictateTitleBtn
+    );
+
+  };
+
+
+dictateDescriptionBtn.onclick =
+  ()=>{
+
+    startDictation(
+      descriptionInput,
+      dictateDescriptionBtn
+    );
+
+  };
+
+
+/* =========================================================
+   GOVOR
+========================================================= */
+
+let speaking =
+  false;
+
+
+function stopSpeaking(){
+
+  if(
+    "speechSynthesis" in window
+  ){
+
+    speechSynthesis.cancel();
+
+  }
+
+
+  speaking =
+    false;
+
+
+  speakBtn.textContent =
+    "🔊 Preberi";
+
+}
+
+
+speakBtn.onclick =
+  ()=>{
+
+    if(speaking){
+
+      stopSpeaking();
+
+      return;
+
+    }
+
+
+    const hotspot =
+      getHotspot(
+        selectedHotspotId
+      );
+
+
+    if(
+      !hotspot ||
+      !(
+        "speechSynthesis" in window
+      )
+    ){
+      return;
+    }
+
+
+    const utterance =
+      new SpeechSynthesisUtterance(
+
+        (
+          hotspot.title ||
+          "Brez naslova"
+        ) +
+
+        ". " +
+
+        (
+          hotspot.description ||
+          "Ni opisa."
+        )
+
+      );
+
+
+    utterance.lang =
+      "sl-SI";
+
+
+    utterance.onstart =
+      ()=>{
+
+        speaking =
+          true;
+
+
+        speakBtn.textContent =
+          "■ Ustavi";
+
+      };
+
+
+    utterance.onend =
+      stopSpeaking;
+
+
+    speechSynthesis.speak(
+      utterance
+    );
+
+  };
+
+
+/* =========================================================
+   POPUP POSITION
+========================================================= */
+
+function positionPopup(){
+
+  if(
+    !selectedHotspotId ||
+    popup.style.display ===
+      "none" ||
+    scene.is(
+      "vr-mode"
+    )
+  ){
+    return;
+  }
+
+
+  const marker =
+    [...hotspotContainer.children]
+      .find(
+        element =>
+          element.dataset.hotspotId ===
+          selectedHotspotId
+      );
+
+
+  if(
+    !marker ||
+    !scene.camera
+  ){
+    return;
+  }
+
+
+  const worldPosition =
+    new THREE.Vector3();
+
+
+  marker.object3D.getWorldPosition(
+    worldPosition
+  );
+
+
+  worldPosition.project(
+    scene.camera
+  );
+
+
+  const x =
+    (
+      worldPosition.x +
+      1
+    ) *
+    0.5 *
+    innerWidth;
+
+
+  const y =
+    (
+      -worldPosition.y +
+      1
+    ) *
+    0.5 *
+    innerHeight;
+
+
+  const width =
+    popup.offsetWidth;
+
+
+  const height =
+    popup.offsetHeight;
+
+
+  let left =
+
+    x <
+    innerWidth/2
+
+      ? x + 28
+
+      : x -
+        width -
+        28;
+
+
+  let top =
+    y -
+    height/2;
+
+
+  left =
+    THREE.MathUtils.clamp(
+      left,
+      8,
+      innerWidth -
+      width -
+      8
+    );
+
+
+  top =
+    THREE.MathUtils.clamp(
+      top,
+      8,
+      innerHeight -
+      height -
+      8
+    );
+
+
+  popup.style.left =
+    left + "px";
+
+
+  popup.style.top =
+    top + "px";
+
+}
+
+
+/* =========================================================
+   ADD HOTSPOT
+========================================================= */
+
+let addMode =
+  false;
+
+
+let sceneCanvas =
+  null;
+
+
+let pointerTracking =
+  false;
+
+
+let pointerStartX =
+  0;
+
+
+let pointerStartY =
+  0;
+
+
+let pointerStartTime =
+  0;
+
+
+let pointerWasDrag =
+  false;
+
+
+function setDesktopMouseEnabled(enabled){
+
+  mouseCursor.setAttribute(
+
+    "cursor",
+
+    `enabled:${enabled}; rayOrigin:mouse; fuse:false`
+
+  );
+
+
+  mouseCursor.setAttribute(
+
+    "raycaster",
+
+    `enabled:${enabled}; objects:.mouse-target; far:100; interval:20`
+
+  );
+
+}
+
+
+function startAddMode(){
+
+  if(
+    scene.is(
+      "vr-mode"
+    )
+  ){
+    return;
+  }
+
+
+  closePopup();
+
+
+  addMode =
+    true;
+
+
+  setDesktopMouseEnabled(
+    false
+  );
+
+
+  addBtn.classList.add(
+    "active"
+  );
+
+
+  addBtn.textContent =
+    "PREKLIČI";
+
+
+  hint.style.display =
+    "block";
+
+}
+
+
+function stopAddMode(){
+
+  addMode =
+    false;
+
+
+  addBtn.classList.remove(
+    "active"
+  );
+
+
+  addBtn.textContent =
+    "+ Dodaj hotspot";
+
+
+  hint.style.display =
+    "none";
+
+
+  if(
+    !scene.is(
+      "vr-mode"
+    )
+  ){
+
+    setDesktopMouseEnabled(
+      true
+    );
+
+  }
+
+}
+
+
+addBtn.onclick =
+  event=>{
+
+    event.stopPropagation();
+
+
+    if(addMode){
+
+      stopAddMode();
+
+    }
+    else{
+
+      startAddMode();
+
+    }
+
+  };
+
+
+function createHotspotAtScreenPoint(
+  clientX,
+  clientY
+){
+
+  if(
+    !sceneCanvas ||
+    !scene.camera
+  ){
+    return;
+  }
+
+
+  const rect =
+    sceneCanvas
+      .getBoundingClientRect();
+
+
+  const ndc =
+    new THREE.Vector2(
+
+      (
+        (
+          clientX -
+          rect.left
+        ) /
+        rect.width
+      ) *
+      2 -
+      1,
+
+      -(
+        (
+          clientY -
+          rect.top
+        ) /
+        rect.height
+      ) *
+      2 +
+      1
+
+    );
+
+
+  const raycaster =
+    new THREE.Raycaster();
+
+
+  raycaster.setFromCamera(
+    ndc,
+    scene.camera
+  );
+
+
+  const spherical =
+    vectorToSpherical(
+
+      raycaster
+        .ray
+        .direction
+        .clone()
+        .normalize()
+
+    );
+
+
+  const hotspot = {
+
+    id:
+      "hs-" +
+      Date.now(),
+
+    yaw:
+      spherical.yaw,
+
+    pitch:
+      spherical.pitch,
+
+    title:"",
+
+    description:""
+
+  };
+
+
+  hotspots.push(
+    hotspot
+  );
+
+
+  saveHotspots();
+
+  renderHotspots();
+
+  stopAddMode();
+
+
+  setTimeout(
+    ()=>{
+
+      openEditor(
+        hotspot.id
+      );
+
+    },
+    50
+  );
+
+}
+
+
+function installPointerControls(){
+
+  sceneCanvas =
+    scene.canvas;
+
+
+  if(!sceneCanvas){
+    return;
+  }
+
+
+  sceneCanvas.addEventListener(
+    "pointerdown",
+    event=>{
+
+      if(
+        !addMode ||
+        scene.is(
+          "vr-mode"
+        )
+      ){
+        return;
+      }
+
+
+      pointerTracking =
+        true;
+
+
+      pointerWasDrag =
+        false;
+
+
+      pointerStartX =
+        event.clientX;
+
+
+      pointerStartY =
+        event.clientY;
+
+
+      pointerStartTime =
+        performance.now();
+
+    },
+    true
+  );
+
+
+  sceneCanvas.addEventListener(
+    "pointermove",
+    event=>{
+
+      if(!pointerTracking){
+        return;
+      }
+
+
+      const distance =
+        Math.hypot(
+
+          event.clientX -
+          pointerStartX,
+
+          event.clientY -
+          pointerStartY
+
+        );
+
+
+      if(
+        distance >
+        14
+      ){
+
+        pointerWasDrag =
+          true;
+
+      }
+
+    },
+    true
+  );
+
+
+  sceneCanvas.addEventListener(
+    "pointerup",
+    event=>{
+
+      if(!pointerTracking){
+        return;
+      }
+
+
+      pointerTracking =
+        false;
+
+
+      const duration =
+        performance.now() -
+        pointerStartTime;
+
+
+      if(
+        !addMode ||
+        pointerWasDrag ||
+        duration > 650
+      ){
+        return;
+      }
+
+
+      createHotspotAtScreenPoint(
+        event.clientX,
+        event.clientY
+      );
+
+    },
+    true
+  );
+
+}
+
+
+/* =========================================================
+   ZOOM PANORAME
+========================================================= */
+
+let normalFov =
+  80;
+
+
+function setFov(value){
+
+  normalFov =
+    THREE.MathUtils.clamp(
+      value,
+      35,
+      100
+    );
+
+
+  const threeCamera =
+
+    camera.components &&
+    camera.components.camera &&
+    camera.components.camera.camera;
+
+
+  if(threeCamera){
+
+    threeCamera.fov =
+      normalFov;
+
+
+    threeCamera.updateProjectionMatrix();
+
+  }
+
+}
+
+
+zoomInBtn.onclick =
+  ()=>{
+
+    setFov(
+      normalFov - 8
+    );
+
+  };
+
+
+zoomOutBtn.onclick =
+  ()=>{
+
+    setFov(
+      normalFov + 8
+    );
+
+  };
+
+
+/* =========================================================
+   FULLSCREEN
+========================================================= */
+
+fullscreenBtn.onclick =
+  async ()=>{
+
+    try{
+
+      if(
+        !document.fullscreenElement
+      ){
+
+        await document
+          .documentElement
+          .requestFullscreen();
+
+      }
+      else{
+
+        await document
+          .exitFullscreen();
+
+      }
+
+    }
+    catch(e){}
+
+  };
+
+
+/* =========================================================
+   VR GAZE
+========================================================= */
+
+function setVRGazeEnabled(enabled){
+
+  reticle.setAttribute(
+    "visible",
+    enabled
+  );
+
+
+  reticle.setAttribute(
+
+    "cursor",
+
+    `enabled:${enabled}; fuse:true; fuseTimeout:1200`
+
+  );
+
+
+  reticle.setAttribute(
+
+    "raycaster",
+
+    `enabled:${enabled}; objects:.gaze-target; far:100; interval:50`
+
+  );
+
+}
+
+
+/* =========================================================
+   VR INFO
+========================================================= */
+
+function hideVRInfo(){
+
+  vrInfo.setAttribute(
+    "visible",
+    false
+  );
+
+}
+
+
+function showVRInfo(id){
+
+  const hotspot =
+    getHotspot(id);
+
+
+  if(!hotspot){
+    return;
+  }
+
+
+  vrInfoTitle.setAttribute(
+
+    "value",
+
+    hotspot.title ||
+    "Brez naslova"
+
+  );
+
+
+  vrInfoDescription.setAttribute(
+
+    "value",
+
+    hotspot.description ||
+    "Ni opisa."
+
+  );
+
+
+  const cameraPosition =
+    new THREE.Vector3();
+
+
+  const direction =
+    new THREE.Vector3();
+
+
+  scene.camera.getWorldPosition(
+    cameraPosition
+  );
+
+
+  scene.camera.getWorldDirection(
+    direction
+  );
+
+
+  const position =
+    cameraPosition
+      .clone()
+      .add(
+
+        direction
+          .clone()
+          .multiplyScalar(
+            2.6
+          )
+
+      );
+
+
+  vrInfo.object3D.position.copy(
+    position
+  );
+
+
+  vrInfo.object3D.lookAt(
+    cameraPosition
+  );
+
+
+  vrInfo.setAttribute(
+    "visible",
+    true
+  );
+
+}
+
+
+vrCloseButton.onclick =
+  hideVRInfo;
+
+
+/* =========================================================
+   VR MODE
+
+   panorama
+   ali
+   model
+========================================================= */
+
+let pendingVRMode =
+  "panorama";
+
+
+function showVRStart(mode){
+
+  pendingVRMode =
+    mode;
+
+
+  if(
+    mode === "model"
+  ){
+
+    vrStartTitle.textContent =
+      "🫀 Srce v VR";
+
+
+    vrStartText.textContent =
+      "Obrni telefon vodoravno. Srce se bo prikazalo pred tabo v Cardboard VR.";
+
+  }
+  else{
+
+    vrStartTitle.textContent =
+      "🥽 Cardboard";
+
+
+    vrStartText.textContent =
+      "Obrni telefon vodoravno in ga vstavi v Cardboard očala.";
+
+  }
+
+
+  vrStart.style.display =
+    "flex";
+
+}
+
+
+/* panorama VR */
+
+vrBtn.onclick =
+  ()=>{
+
+    hideMap();
+
+    modelsOverlay.style.display =
+      "none";
+
+
+    closePopup();
+
+    stopAddMode();
+
+
+    showVRStart(
+      "panorama"
+    );
+
+  };
+
+
+/* model VR */
+
+modelVRBtn.onclick =
+  ()=>{
+
+    showVRStart(
+      "model"
+    );
+
+  };
+
+
+cancelVRBtn.onclick =
+  ()=>{
+
+    vrStart.style.display =
+      "none";
+
+  };
+
+
+startVRBtn.onclick =
+  async ()=>{
+
+    /*
+      iPhone dovoljenje za senzor.
+    */
+
+    if(
+
+      typeof DeviceOrientationEvent !==
+        "undefined" &&
+
+      typeof DeviceOrientationEvent
+        .requestPermission ===
+        "function"
+
+    ){
+
+      try{
+
+        const permission =
+
+          await DeviceOrientationEvent
+            .requestPermission();
+
+
+        if(
+          permission !==
+          "granted"
+        ){
+
+          alert(
+            "Dovoljenje za senzor gibanja ni bilo odobreno."
+          );
+
+          return;
+
+        }
+
+      }
+      catch(e){
+
+        return;
+
+      }
+
+    }
+
+
+    vrStart.style.display =
+      "none";
+
+
+    try{
+
+      if(
+        screen.orientation &&
+        screen.orientation.lock
+      ){
+
+        await screen.orientation.lock(
+          "landscape"
+        );
+
+      }
+
+    }
+    catch(e){}
+
+
+    /*
+      Če gremo v VR MODEL:
+      skrijemo panoramo in hotspote.
+    */
+
+    if(
+      pendingVRMode ===
+      "model"
+    ){
+
+      modelViewer.style.display =
+        "none";
+
+
+      sky.setAttribute(
+        "visible",
+        false
+      );
+
+
+      hotspotContainer.setAttribute(
+        "visible",
+        false
+      );
+
+
+      vrModelWorld.setAttribute(
+        "visible",
+        true
+      );
+
+    }
+    else{
+
+      sky.setAttribute(
+        "visible",
+        true
+      );
+
+
+      hotspotContainer.setAttribute(
+        "visible",
+        true
+      );
+
+
+      vrModelWorld.setAttribute(
+        "visible",
+        false
+      );
+
+    }
+
+
+    try{
+
+      await scene.enterVR();
+
+    }
+    catch(e){
+
+      alert(
+        "Brskalnik ni uspel zagnati VR načina."
+      );
+
+    }
+
+  };
+
+
+/* =========================================================
+   VR NAZAJ PRI MODELU
+========================================================= */
+
+vrModelBack.addEventListener(
+  "click",
+  ()=>{
+
+    if(
+      scene.is(
+        "vr-mode"
+      )
+    ){
+
+      scene.exitVR();
+
+    }
+
+  }
+);
+
+
+/* =========================================================
+   RETICLE
+========================================================= */
+
+reticle.addEventListener(
+  "fusing",
+  ()=>{
+
+    reticle.setAttribute(
+      "material",
+      "color",
+      "#22c55e"
+    );
+
+  }
+);
+
+
+reticle.addEventListener(
+  "mouseleave",
+  ()=>{
+
+    reticle.setAttribute(
+      "material",
+      "color",
+      "#ffffff"
+    );
+
+  }
+);
+
+
+reticle.addEventListener(
+  "click",
+  event=>{
+
+    if(
+      !scene.is(
+        "vr-mode"
+      )
+    ){
+      return;
+    }
+
+
+    const target =
+
+      event.detail &&
+      event.detail.intersectedEl;
+
+
+    if(!target){
+      return;
+    }
+
+
+    if(
+      target ===
+      vrCloseButton
+    ){
+
+      hideVRInfo();
+
+      return;
+
+    }
+
+
+    if(
+      target ===
+      vrModelBack
+    ){
+
+      scene.exitVR();
+
+      return;
+
+    }
+
+
+    if(
+      target.classList.contains(
+        "hotspot"
+      )
+    ){
+
+      showVRInfo(
+        target.dataset.hotspotId
+      );
+
+    }
+
+  }
+);
+
+
+/* =========================================================
+   ENTER VR
+========================================================= */
+
+scene.addEventListener(
+  "enter-vr",
+  ()=>{
+
+    closePopup();
+
+    stopAddMode();
+
+
+    toolbar.style.display =
+      "none";
+
+
+    setDesktopMouseEnabled(
+      false
+    );
+
+
+    setVRGazeEnabled(
+      true
+    );
+
+
+    checkOrientation();
+
+  }
+);
+
+
+/* =========================================================
+   EXIT VR
+========================================================= */
+
+scene.addEventListener(
+  "exit-vr",
+  ()=>{
+
+    setVRGazeEnabled(
+      false
+    );
+
+
+    setDesktopMouseEnabled(
+      true
+    );
+
+
+    toolbar.style.display =
+      "flex";
+
+
+    rotateWarning.style.display =
+      "none";
+
+
+    hideVRInfo();
+
+
+    /*
+      Če smo bili v model VR,
+      vrnemo normalni 3D viewer.
+    */
+
+    if(
+      pendingVRMode ===
+      "model"
+    ){
+
+      vrModelWorld.setAttribute(
+        "visible",
+        false
+      );
+
+
+      sky.setAttribute(
+        "visible",
+        true
+      );
+
+
+      hotspotContainer.setAttribute(
+        "visible",
+        true
+      );
+
+
+      modelViewer.style.display =
+        "block";
+
+
+      resizeNormalModelViewer();
+
+    }
+
+
+    try{
+
+      if(
+        screen.orientation &&
+        screen.orientation.unlock
+      ){
+
+        screen.orientation.unlock();
+
+      }
+
+    }
+    catch(e){}
+
+  }
+);
+
+
+/* =========================================================
+   ORIENTATION
+========================================================= */
+
+function checkOrientation(){
+
+  if(
+    !scene.is(
+      "vr-mode"
+    )
+  ){
+
+    rotateWarning.style.display =
+      "none";
+
+    return;
+
+  }
+
+
+  if(
+    innerHeight >
+    innerWidth
+  ){
+
+    rotateWarning.style.display =
+      "flex";
+
+  }
+  else{
+
+    rotateWarning.style.display =
+      "none";
+
+  }
+
+}
+
+
+window.addEventListener(
+  "resize",
+  ()=>{
+
+    checkOrientation();
+
+    resizeNormalModelViewer();
+
+  }
+);
+
+
+window.addEventListener(
+  "orientationchange",
+  ()=>{
+
+    setTimeout(
+      checkOrientation,
+      300
+    );
+
+  }
+);
+
+
+/* =========================================================
+   ESC
+========================================================= */
+
+document.addEventListener(
+  "keydown",
+  event=>{
+
+    if(
+      event.key !==
+      "Escape"
+    ){
+      return;
+    }
+
+
+    if(
+      modelViewer.style.display ===
+      "block"
+    ){
+
+      closeNormalModelViewer();
+
+
+      modelsOverlay.style.display =
+        "block";
+
+
+      return;
+
+    }
+
+
+    if(
+      modelsOverlay.style.display ===
+      "block"
+    ){
+
+      modelsOverlay.style.display =
+        "none";
+
+
+      showMap();
+
+      return;
+
+    }
+
+
+    if(
+      mapOverlay.style.display !==
+      "none"
+    ){
+
+      hideMap();
+
+      return;
+
+    }
+
+
+    closePopup();
+
+  }
+);
+
+
+/* =========================================================
+   SCENE READY
+========================================================= */
+
+scene.addEventListener(
+  "loaded",
+  ()=>{
+
+    const point =
+      currentPoint();
+
+
+    panoramaImage.setAttribute(
+      "src",
+      point.panorama
+    );
+
+
+    sky.setAttribute(
+      "src",
+      point.panorama
+    );
+
+
+    locationBadge.textContent =
+      "📍 " +
+      point.name;
+
+
+    renderHotspots();
+
+    updateMapActiveState();
+
+    installPointerControls();
+
+    setFov(
+      normalFov
+    );
+
+
+    setDesktopMouseEnabled(
+      true
+    );
+
+
+    setVRGazeEnabled(
+      false
+    );
+
+
+    /*
+      Zoom panorame s koleščkom.
+    */
+
+    if(scene.canvas){
+
+      scene.canvas.addEventListener(
+        "wheel",
+        event=>{
+
+          if(
+            scene.is(
+              "vr-mode"
+            )
+          ){
+            return;
+          }
+
+
+          event.preventDefault();
+
+
+          setFov(
+
+            normalFov +
+
+            (
+              event.deltaY >
+              0
+
+                ? 4
+
+                : -4
+            )
+
+          );
+
+        },
+
+        {
+          passive:false
+        }
+      );
+
+    }
+
+  }
+);
+
+
+/* =========================================================
+   UI LOOP
+========================================================= */
+
+function uiLoop(){
+
+  requestAnimationFrame(
+    uiLoop
+  );
+
+
+  if(
+    !scene.is(
+      "vr-mode"
+    )
+  ){
+
+    positionPopup();
+
+  }
+
+}
+
+
+uiLoop();
+
+</script>
+
+</body>
+</html>
