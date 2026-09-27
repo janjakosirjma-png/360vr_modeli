@@ -1,4 +1,5 @@
 
+
 <!DOCTYPE html>
 <html lang="sl">
 <head>
@@ -791,10 +792,9 @@ textarea:focus-visible{
       predmeti/heart.glb
     -->
 
-    <a-asset-item
-      id="heartAsset"
-      src="predmeti/heart.glb">
-    </a-asset-item>
+    <a-asset-item id="heartAsset" src="predmeti/heart.glb"></a-asset-item>
+    <a-asset-item id="lungsAsset" src="predmeti/lungs.glb"></a-asset-item>
+    <a-asset-item id="kidneyAsset" src="predmeti/kidney.glb"></a-asset-item>
 
   </a-assets>
 
@@ -1245,6 +1245,18 @@ textarea:focus-visible{
 
       </button>
 
+      <button id="lungsModelCard" class="modelCard">
+        <span class="modelEmoji">🫁</span>
+        <span class="modelName">PLJUČA</span>
+        <span class="modelDescription">lungs.glb</span>
+      </button>
+
+      <button id="kidneyModelCard" class="modelCard">
+        <span class="modelEmoji">🫘</span>
+        <span class="modelName">LEDVICE</span>
+        <span class="modelDescription">kidney.glb</span>
+      </button>
+
     </div>
 
   </div>
@@ -1264,12 +1276,12 @@ textarea:focus-visible{
       🫀 SRCE
     </div>
 
-    <button id="modelResetBtn">
-      ↺ Ponastavi
+    <button id="modelAddHotspotBtn" style="background:#2563eb">
+      + Dodaj hotspot
     </button>
 
-    <button id="modelVRBtn">
-      🥽 VR CARDBOARD
+    <button id="modelResetBtn">
+      ↺ Ponastavi
     </button>
 
     <button id="modelBackBtn">
@@ -1283,11 +1295,25 @@ textarea:focus-visible{
 
 
   <div id="modelHelp">
-    Povleci za vrtenje • kolešček ali ščip za približevanje
+    Povleci za vrtenje • kolešček ali ščip za približevanje • hotspot dodaš z gumbom zgoraj
   </div>
 
 </div>
 
+
+<div id="modelHotspotPopup" style="display:none;position:fixed;z-index:19700;width:350px;max-width:calc(100vw - 20px);padding:18px;border-radius:14px;background:#fff;color:#111;box-shadow:0 12px 45px rgba(0,0,0,.5)">
+  <button id="modelHotspotClose" style="position:absolute;right:8px;top:8px;width:34px;min-width:34px;padding:0">×</button>
+  <div id="modelHotspotReader">
+    <h2 id="modelHotspotTitle" style="margin-right:40px"></h2>
+    <div id="modelHotspotDescription" style="white-space:pre-wrap;line-height:1.45;margin-bottom:12px"></div>
+    <button id="modelHotspotEdit" style="background:#2563eb">Uredi</button>
+  </div>
+  <div id="modelHotspotEditor" style="display:none">
+    <label class="fieldLabel">Naslov</label><input id="modelHotspotTitleInput" style="width:100%;padding:11px" type="text">
+    <label class="fieldLabel">Opis</label><textarea id="modelHotspotDescriptionInput" style="width:100%;min-height:100px;padding:11px"></textarea>
+    <div class="editorButtons"><button id="modelHotspotSave" style="background:#16a34a">Shrani</button><button id="modelHotspotDelete" style="background:#dc2626">Izbriši</button></div>
+  </div>
+</div>
 
 <!-- =======================================================
      HOTSPOT POPUP
@@ -1590,8 +1616,9 @@ const modelsOverlay =
 const modelsClose =
   $("modelsClose");
 
-const heartModelCard =
-  $("heartModelCard");
+const heartModelCard = $("heartModelCard");
+const lungsModelCard = $("lungsModelCard");
+const kidneyModelCard = $("kidneyModelCard");
 
 
 const modelViewer =
@@ -1603,9 +1630,7 @@ const modelCanvas =
 const modelResetBtn =
   $("modelResetBtn");
 
-const modelVRBtn =
-  $("modelVRBtn");
-
+const modelAddHotspotBtn = $("modelAddHotspotBtn");
 const modelBackBtn =
   $("modelBackBtn");
 
@@ -1719,16 +1744,9 @@ vrInfo.setAttribute(
 
 const MODELS = {
 
-  heart:{
-
-    id:"heart",
-
-    name:"Srce",
-
-    file:"predmeti/heart.glb"
-
-  }
-
+  heart:{id:"heart", name:"Srce", emoji:"🫀", file:"predmeti/heart.glb"},
+  lungs:{id:"lungs", name:"Pljuča", emoji:"🫁", file:"predmeti/lungs.glb"},
+  kidney:{id:"kidney", name:"Ledvice", emoji:"🫘", file:"predmeti/kidney.glb"}
 };
 
 
@@ -2224,6 +2242,9 @@ heartModelCard.onclick =
   };
 
 
+lungsModelCard.onclick = ()=>{ selectedModel=MODELS.lungs; modelsOverlay.style.display="none"; openNormalModelViewer(); };
+kidneyModelCard.onclick = ()=>{ selectedModel=MODELS.kidney; modelsOverlay.style.display="none"; openNormalModelViewer(); };
+
 modelBackBtn.onclick =
   ()=>{
 
@@ -2254,8 +2275,13 @@ let modelCamera =
 let normalModel =
   null;
 
-let modelAnimationFrame =
-  null;
+let modelAnimationFrame = null;
+let modelMixer = null;
+let modelClock = new THREE.Clock();
+let modelHotspotObjects = [];
+let modelHotspots = [];
+let modelHotspotAddMode = false;
+let activeModelHotspotId = null;
 
 
 let modelRotationX =
@@ -2518,11 +2544,15 @@ function loadNormalModel(){
       );
 
 
-      modelScene.add(
-        normalModel
-      );
-
-
+      modelScene.add(normalModel);
+      $("modelViewerTitle").textContent = (selectedModel.emoji || "🧩") + " " + selectedModel.name.toUpperCase();
+      modelMixer = null;
+      if(gltf.animations && gltf.animations.length){
+        modelMixer = new THREE.AnimationMixer(normalModel);
+        gltf.animations.forEach(clip=>modelMixer.clipAction(clip).play());
+      }
+      loadModelHotspots();
+      renderModelHotspots();
       resetNormalModel();
 
     },
@@ -2537,7 +2567,7 @@ function loadNormalModel(){
 
 
       alert(
-        "heart.glb ni bilo mogoče naložiti.\n\nPreveri, da je datoteka v:\npredmeti/heart.glb"
+        selectedModel.file + " ni bilo mogoče naložiti.\n\nPreveri, da datoteka obstaja."
       );
 
     }
@@ -2628,6 +2658,8 @@ function animateNormalModel(){
     return;
   }
 
+
+  if(modelMixer){ modelMixer.update(Math.min(modelClock.getDelta(),0.05)); } else { modelClock.getDelta(); }
 
   if(normalModel){
 
@@ -4628,18 +4660,6 @@ vrBtn.onclick =
   };
 
 
-/* model VR */
-
-modelVRBtn.onclick =
-  ()=>{
-
-    showVRStart(
-      "model"
-    );
-
-  };
-
-
 cancelVRBtn.onclick =
   ()=>{
 
@@ -5323,6 +5343,43 @@ function uiLoop(){
 
 
 uiLoop();
+
+
+/* =========================================================
+   HOTSPOTI NA 3D MODELIH (samo navadni 3D pogled)
+========================================================= */
+function modelHotspotStorageKey(){ return "model-hotspots-v1-" + selectedModel.id; }
+function loadModelHotspots(){ try{ modelHotspots=JSON.parse(localStorage.getItem(modelHotspotStorageKey())||"[]"); }catch(e){modelHotspots=[];} }
+function saveModelHotspots(){ localStorage.setItem(modelHotspotStorageKey(),JSON.stringify(modelHotspots)); }
+function clearModelHotspotObjects(){ modelHotspotObjects.forEach(o=>modelScene && modelScene.remove(o)); modelHotspotObjects=[]; }
+function renderModelHotspots(){
+  clearModelHotspotObjects(); if(!modelScene) return;
+  modelHotspots.forEach(h=>{
+    const mesh=new THREE.Mesh(new THREE.SphereGeometry(.035,20,20),new THREE.MeshBasicMaterial({color:0xffcc00,depthTest:false}));
+    mesh.position.set(h.x,h.y,h.z); mesh.renderOrder=999; mesh.userData.hotspotId=h.id; modelScene.add(mesh); modelHotspotObjects.push(mesh);
+  });
+}
+function positionModelPopup(x,y){ const p=$("modelHotspotPopup"); p.style.left=Math.max(10,Math.min(innerWidth-360,x+12))+"px"; p.style.top=Math.max(70,Math.min(innerHeight-260,y+12))+"px"; }
+function showModelHotspot(h,x,y,edit=false){
+  activeModelHotspotId=h.id; positionModelPopup(x,y); $("modelHotspotPopup").style.display="block";
+  $("modelHotspotTitle").textContent=h.title||"Hotspot"; $("modelHotspotDescription").textContent=h.description||"";
+  $("modelHotspotTitleInput").value=h.title||""; $("modelHotspotDescriptionInput").value=h.description||"";
+  $("modelHotspotReader").style.display=edit?"none":"block"; $("modelHotspotEditor").style.display=edit?"block":"none";
+}
+function closeModelHotspot(){ $("modelHotspotPopup").style.display="none"; activeModelHotspotId=null; }
+modelAddHotspotBtn.onclick=()=>{ modelHotspotAddMode=!modelHotspotAddMode; modelAddHotspotBtn.style.background=modelHotspotAddMode?"#16a34a":"#2563eb"; modelAddHotspotBtn.textContent=modelHotspotAddMode?"Klikni na model…":"+ Dodaj hotspot"; };
+$("modelHotspotClose").onclick=closeModelHotspot;
+$("modelHotspotEdit").onclick=()=>{ const h=modelHotspots.find(x=>x.id===activeModelHotspotId); if(h) showModelHotspot(h,parseFloat($("modelHotspotPopup").style.left)||100,parseFloat($("modelHotspotPopup").style.top)||100,true); };
+$("modelHotspotSave").onclick=()=>{ const h=modelHotspots.find(x=>x.id===activeModelHotspotId); if(!h)return; h.title=$("modelHotspotTitleInput").value.trim()||"Hotspot"; h.description=$("modelHotspotDescriptionInput").value.trim(); saveModelHotspots(); closeModelHotspot(); };
+$("modelHotspotDelete").onclick=()=>{ modelHotspots=modelHotspots.filter(x=>x.id!==activeModelHotspotId); saveModelHotspots(); renderModelHotspots(); closeModelHotspot(); };
+modelCanvas.addEventListener("click",event=>{
+  if(!normalModel || modelDragging) return;
+  const rect=modelCanvas.getBoundingClientRect(); const mouse=new THREE.Vector2(((event.clientX-rect.left)/rect.width)*2-1,-((event.clientY-rect.top)/rect.height)*2+1); const ray=new THREE.Raycaster(); ray.setFromCamera(mouse,modelCamera);
+  const hitHot=ray.intersectObjects(modelHotspotObjects,false)[0]; if(hitHot && !modelHotspotAddMode){ const h=modelHotspots.find(x=>x.id===hitHot.object.userData.hotspotId); if(h) showModelHotspot(h,event.clientX,event.clientY); return; }
+  if(!modelHotspotAddMode) return;
+  const hits=ray.intersectObject(normalModel,true); if(!hits.length) return; const pt=hits[0].point.clone();
+  const h={id:"mh_"+Date.now(),x:pt.x,y:pt.y,z:pt.z,title:"Nov hotspot",description:""}; modelHotspots.push(h); saveModelHotspots(); renderModelHotspots(); modelHotspotAddMode=false; modelAddHotspotBtn.style.background="#2563eb"; modelAddHotspotBtn.textContent="+ Dodaj hotspot"; showModelHotspot(h,event.clientX,event.clientY,true);
+});
 
 </script>
 
